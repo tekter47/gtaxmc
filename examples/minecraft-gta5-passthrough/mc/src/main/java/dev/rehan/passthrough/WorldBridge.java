@@ -15,7 +15,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -277,7 +276,9 @@ public final class WorldBridge {
 
 			ServerPlayer player = s.getPlayerList().getPlayers().get(0);
 			if (start) {
-				player.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+				if (!player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA)) {
+					return;
+				}
 				player.getAbilities().flying = false;
 				player.onUpdateAbilities();
 				player.setOnGround(false);
@@ -286,7 +287,6 @@ public final class WorldBridge {
 				player.needsSync = true;
 			} else {
 				player.stopFallFlying();
-				player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
 				player.getAbilities().flying = true;
 				player.onUpdateAbilities();
 			}

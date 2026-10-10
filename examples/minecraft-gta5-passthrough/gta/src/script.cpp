@@ -165,13 +165,14 @@ namespace
 		float steveX = 0, steveY = 0, steveZ = 0;
 		bool haveOut = false;
 		float dist = 5.5f, height = 1.4f;
-		// armed by default: Space launches the elytra, and falling off an edge can also open it
+		bool elytra = false;
+		int spaceTapAt = 0;
+		// armed by default; takeoff requires an equipped elytra and a double-tap of Space
 		bool armed = true;
-		float armZ = 0, armHeading = 0, armPitch = 0, armSpeed = 1.0f, armDrop = 0.6f;
+		float armHeading = 0, armPitch = 0, armSpeed = 1.0f;
 		int armHold = 3000;             // ms the arm heading/pitch steer before the director or the mouse does
-		// user flight: Space launches, the mouse steers, and touching down returns to walking
+		// user flight: the mouse steers, and touching down returns to walking
 		bool user = true;
-		int fallingSince = 0;           // game time the player's current fall began (0 = not falling)
 		int launchedAt = 0, armAfter = 0;
 	} g_drive;
 	float g_yOffset = 0.0f;
@@ -1393,7 +1394,10 @@ namespace
 	void melee(Ped ped)
 	{
 		const Vector3 me = natives::GetEntityCoords(ped, TRUE);
-		const float h = natives::GetGameplayCamRot(2).z * 3.14159265f / 180.0f;
+		const Vector3 velocity = natives::GetEntityVelocity(ped);
+		const bool critical = !g_drive.on && natives::IsPedFalling(ped) && velocity.z < -0.5f;
+		const float power = critical ? 1.75f : 1.0f;
+		const float h = (g_drive.on ? g_drive.sHeading : natives::GetGameplayCamRot(2).z) * 3.14159265f / 180.0f;
 		const float fx = -std::sin(h), fy = std::cos(h);
 		int handles[512];
 		const int peds = worldGetAllPeds(handles, 512);
@@ -1406,9 +1410,9 @@ namespace
 			const float dx = o.x - me.x, dy = o.y - me.y, d = std::sqrt(dx * dx + dy * dy);
 			if (d > 4.0f || std::fabs(o.z - me.z) > 2.5f || (d > 0.3f && (dx * fx + dy * fy) / d < 0.3f))
 				continue;
-			natives::SetPedToRagdoll(q, 4000);
-			natives::ApplyDamageToPed(q, 400);
-			natives::ApplyForceToEntity(q, fx * g_meleePed, fy * g_meleePed, g_meleeUp);
+			natives::SetPedToRagdoll(q, critical ? 2400 : 1400);
+			natives::ApplyDamageToPed(q, critical ? 80 : 40);
+			natives::ApplyForceToEntity(q, fx * g_meleePed * power, fy * g_meleePed * power, g_meleeUp * power);
 		}
 		const int cars = worldGetAllVehicles(handles, 512);
 		for (int i = 0; i < cars; ++i)
@@ -1418,34 +1422,8 @@ namespace
 			const float dx = o.x - me.x, dy = o.y - me.y, d = std::sqrt(dx * dx + dy * dy);
 			if (d > 5.5f || std::fabs(o.z - me.z) > 3.0f || (d > 0.5f && (dx * fx + dy * fy) / d < 0.2f))
 				continue;
-			natives::ApplyForceToEntity(v, fx * g_meleeCar, fy * g_meleeCar, g_meleeCarUp);
+			natives::ApplyForceToEntity(v, fx * g_meleeCar * power, fy * g_meleeCar * power, g_meleeCarUp * power);
 		}
-	}
-
-	/// Whether an armed player has gone off an edge. Scripted: dropped below where it was armed. The player's own:
-	/// really falling, with a long way down (not a kerb or a stair).
-	bool drive_should_launch(Ped ped)
-	{
-		const Vector3 p = natives::GetEntityCoords(ped, TRUE);
-		if (!g_drive.user)
-			return p.z < g_drive.armZ - g_drive.armDrop;
-		const int now = natives::GetGameTimer();
-		const bool falling = natives::GetEntityVelocity(ped).z < -3.0f &&
-			(natives::IsPedFalling(ped) || natives::IsPedInParachuteFreeFall(ped) || natives::GetEntityVelocity(ped).z < -6.0f);
-		if (!falling || now < g_drive.armAfter)
-		{
-			g_drive.fallingSince = 0;
-			return false;
-		}
-		if (g_drive.fallingSince == 0)
-			g_drive.fallingSince = now;
-		if (now - g_drive.fallingSince < 250)
-			return false;
-		// a long way down below (a failed probe is no evidence either way: then only a fast fall counts)
-		float g = 0.0f;
-		if (natives::GetGroundZFor3dCoord(p.x, p.y, p.z + 0.5f, &g, FALSE, FALSE) && g > -100.0f && g != 0.0f)
-			return p.z - g > 10.0f;
-		return natives::GetEntityVelocity(ped).z < -12.0f;
 	}
 
 	/// Touched down: back to walking where Minecraft's player landed, facing the way it flew; armed again for the next jump.
@@ -1456,10 +1434,9 @@ namespace
 		natives::SetEntityHeading(ped, g_drive.sHeading);
 		natives::SetGameplayCamRelativeHeading(0.0f);
 		sendf("{\"t\":\"glide\",\"on\":false}");
-		g_drive.armZ = groundZ + 1.0f;
 		g_drive.armed = true;
 		g_drive.armAfter = natives::GetGameTimer() + 1500;
-		g_drive.fallingSince = 0;
+		g_drive.spaceTapAt = 0;
 	}
 
 	/// Scripted shots, sent by a director script through Minecraft's link: {"t":"gta","op":...} in GTA coordinates.
@@ -1679,10 +1656,8 @@ namespace
 			g_drive.armHeading = float(json_num(m, "h", natives::GetEntityHeading(ped)));
 			g_drive.armPitch = float(json_num(m, "p", -20.0));
 			g_drive.armSpeed = float(json_num(m, "speed", 1.0));
-			g_drive.armDrop = float(json_num(m, "drop", 0.6));
 			g_drive.armHold = int(json_num(m, "hold", 3000));
 			g_drive.user = json_num(m, "user", 0.0) != 0.0;
-			g_drive.armZ = natives::GetEntityCoords(ped, TRUE).z;
 			g_drive.armed = json_num(m, "on", 1.0) != 0.0;
 		}
 		else if (op == "probe")
@@ -1850,6 +1825,9 @@ namespace
 		}
 		if (type == "mcpos")
 		{
+			const char *elytra = json_value(message, "elytra");
+			if (elytra != nullptr)
+				g_drive.elytra = std::strncmp(elytra, "true", 4) == 0;
 			const char *pos = json_value(message, "pos");
 			const char *vel = json_value(message, "vel");
 			double x, y, z, vx = 0, vy = 0, vz = 0;
@@ -1863,6 +1841,14 @@ namespace
 				g_drive.posNanos = tn > 0.0 ? int64_t(tn) : now_nanos();
 				g_drive.havePos = true;
 			}
+			return;
+		}
+		if (type == "elytra")
+		{
+			const char *on = json_value(message, "on");
+			g_drive.elytra = on != nullptr && std::strncmp(on, "true", 4) == 0;
+			if (!g_drive.elytra)
+				g_drive.spaceTapAt = 0;
 			return;
 		}
 		if (type == "proj")
@@ -2122,11 +2108,29 @@ namespace
 			}
 		}
 
-		// the player's take-off: Space (jump) while armed, or a real fall off something tall
-		const bool takeOff = g_drive.user && natives::GetGameTimer() >= g_drive.armAfter && natives::IsDisabledControlJustPressed(0, 22);
-		if (g_drive.armed && !g_drive.on && (takeOff || drive_should_launch(ped)))
+		// Require two distinct jump taps while the equipped elytra is reported by Minecraft.
+		const int now = natives::GetGameTimer();
+		bool takeOff = false;
+		if (!g_drive.elytra || g_drive.on || !g_drive.armed)
+			g_drive.spaceTapAt = 0;
+		if (g_drive.elytra && g_drive.armed && !g_drive.on && now >= g_drive.armAfter)
 		{
-			// off the edge: Minecraft takes over (elytra, launched along the arm heading/pitch, or where the player looks)
+			if (natives::IsControlJustPressed(0, 22))
+			{
+				if (g_drive.spaceTapAt != 0 && now - g_drive.spaceTapAt <= 450)
+				{
+					takeOff = true;
+					g_drive.spaceTapAt = 0;
+				}
+				else
+					g_drive.spaceTapAt = now;
+			}
+			if (g_drive.spaceTapAt != 0 && now - g_drive.spaceTapAt > 450)
+				g_drive.spaceTapAt = 0;
+		}
+		if (g_drive.armed && !g_drive.on && takeOff)
+		{
+			// Minecraft's equipped elytra takes over, launched along the selected heading/pitch.
 			const Vector3 look = natives::GetGameplayCamRot(2);
 			drive_set(ped, true);
 			g_drive.heading = g_drive.sHeading = g_drive.user ? look.z : g_drive.armHeading;

@@ -8,11 +8,11 @@ composited into GTA's frame against GTA's depth buffer, and what happens in Mine
   at your walls.
 - **TNT and creepers** blow up in both games: each Minecraft explosion is also a GTA explosion.
 - **Minecraft weapons with GTA effects.** Crossbow fireworks burst as GTA rockets where they hit, arrows that hit
-  a person or a car land as GTA bullets, a sword swing sends people flying and shoves cars, and an ender pearl
-  moves GTA's player.
-- **Elytra flight.** Flight is armed automatically: press Space to take off, steer with the mouse, and use
-  fireworks to boost. Minecraft's physics fly Steve while GTA follows with a chase camera; landing returns you
-  to walking.
+  a person or a car land as GTA bullets, sword swings hit and knock back nearby targets, falling swings deal
+  critical damage, and ender pearls move GTA's player.
+- **Elytra flight.** Equip an Elytra in the chest slot and double-tap Space to take off. Steer with the mouse
+  and boost with fireworks; Minecraft physics fly Steve while GTA follows with a chase camera. Landing returns
+  you to walking.
 - **Mobs vs police.** Minecraft's hostile mobs hunt GTA's people, GTA's police shoot back, and damage crosses over
   both ways.
 - **The Nether.** Walk through a lit nether portal and the ground around it turns into the Nether, nether mobs
@@ -157,7 +157,7 @@ Paths come from environment variables, with these defaults:
 | right mouse | Minecraft's use: place blocks, light TNT, shoot, throw pearls, boost with fireworks |
 | mouse wheel, 1-9 | Minecraft's hotbar |
 | Tab | gun mode (experimental): GTA's carbine rifle, minigun and RPG in Steve's hands, then back to Minecraft |
-| Space | take off with the elytra (automatically armed) |
+| Space twice | while wearing an elytra, take off; a single press remains GTA's normal jump |
 
 Everything else (walking, driving, the camera, the view key) is GTA's own, and Minecraft follows. GTA's own
 attack, aim, weapon wheel and weapon keys are disabled while Minecraft has the mouse.
@@ -176,8 +176,8 @@ The mod sets up the hotbar when you join:
 
 Your off hand holds explosive fireworks for the crossbow, and you get 64 arrows.
 
-- **Elytra flight.** Space launches by default; the director's `armdrive` operation remains available for
-  custom launch heading, pitch, speed, and camera distance.
+- **Elytra flight.** The profile gives you an Elytra in your inventory. Equip it in the chest slot, then
+  double-tap Space; the director's `armdrive` operation remains available for custom launch settings.
 - **The Nether.** Get obsidian (`python host\cmd.py "give @a minecraft:obsidian 64"`), build a portal, light it
   and walk through it. The director's `portal` step builds and lights one 10 m in front of you
   (`video/nether_cfg.json`).

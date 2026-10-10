@@ -5,12 +5,16 @@ import net.minecraft.client.Minecraft;
 import dev.rehan.passthrough.Passthrough;
 import java.util.Locale;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /** Keeps the Minecraft player on the host's player: it stands where they stand and looks where the host camera looks. */
 public final class PlayerSync {
 	private static final double TELEPORT_SQ = 64.0 * 64.0;
+	private static boolean lastElytraState;
+	private static long lastElytraSentNanos;
 	/** How far the host's player moved over the last client tick (drives the walk animation). */
 	private static float tickDistance;
 	private static double lastX = Double.NaN, lastZ;
@@ -28,7 +32,16 @@ public final class PlayerSync {
 		Minecraft minecraft = Minecraft.getInstance();
 		LocalPlayer player = minecraft.player;
 		if (p == null || player == null) {
+			lastElytraSentNanos = 0;
 			return;
+		}
+
+		boolean hasElytra = player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA);
+		long now = System.nanoTime();
+		if (hasElytra != lastElytraState || now - lastElytraSentNanos > 1_000_000_000L) {
+			Passthrough.events.accept(String.format(Locale.ROOT, "{\"t\":\"elytra\",\"on\":%b}", hasElytra));
+			lastElytraState = hasElytra;
+			lastElytraSentNanos = now;
 		}
 
 		if (p.drive()) {
@@ -48,8 +61,8 @@ public final class PlayerSync {
 			// second) and when (System.nanoTime is the host's QueryPerformanceCounter clock): the host carries it forward
 			Vec3 at = player.getPosition(partialTick);
 			double vx = (player.getX() - player.xo) * 20.0, vy = (player.getY() - player.yo) * 20.0, vz = (player.getZ() - player.zo) * 20.0;
-			Passthrough.events.accept(String.format(Locale.ROOT, "{\"t\":\"mcpos\",\"pos\":[%.4f,%.4f,%.4f],\"vel\":[%.3f,%.3f,%.3f],\"tn\":%d,\"fly\":%b}",
-				at.x, at.y, at.z, vx, vy, vz, System.nanoTime(), player.isFallFlying()));
+			Passthrough.events.accept(String.format(Locale.ROOT, "{\"t\":\"mcpos\",\"pos\":[%.4f,%.4f,%.4f],\"vel\":[%.3f,%.3f,%.3f],\"tn\":%d,\"fly\":%b,\"elytra\":%b}",
+				at.x, at.y, at.z, vx, vy, vz, System.nanoTime(), player.isFallFlying(), hasElytra));
 			return;
 		}
 

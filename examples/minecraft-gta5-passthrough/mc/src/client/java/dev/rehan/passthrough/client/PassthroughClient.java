@@ -63,6 +63,7 @@ public class PassthroughClient implements ClientModInitializer {
 		"item replace entity @a hotbar.6 with minecraft:creeper_spawn_egg 64",
 		"item replace entity @a hotbar.7 with minecraft:grass_block 64",
 		"item replace entity @a hotbar.8 with minecraft:firework_rocket 64",
+		"give @a minecraft:elytra 1",
 		"give @a minecraft:arrow 64",
 		"item replace entity @a weapon.offhand with minecraft:firework_rocket[fireworks={flight_duration:3,explosions:[{shape:\"large_ball\",colors:[I;16733525,16755200],has_trail:true}]}] 64"
 	);

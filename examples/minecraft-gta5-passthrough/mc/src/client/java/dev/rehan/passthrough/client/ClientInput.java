@@ -7,6 +7,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
 import org.lwjgl.sdl.SDLVideo;
 
@@ -41,6 +42,7 @@ final class ClientInput {
 				if (k.equals("attack") && down && player != null
 					&& BuiltInRegistries.ITEM.getKey(player.getMainHandItem().getItem()).getPath().endsWith("_sword")) {
 					// a sword swing: the host hits what's in front of Steve in its own world
+					player.swing(InteractionHand.MAIN_HAND);
 					Passthrough.events.accept("{\"t\":\"melee\"}");
 				}
 
