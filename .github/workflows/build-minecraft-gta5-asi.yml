@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/build-minecraft-gta5-asi.yml'
       - 'examples/minecraft-gta5-passthrough/gta/**'
+      - 'examples/minecraft-gta5-passthrough/mc/**'
 
 permissions:
   contents: read
