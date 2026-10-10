@@ -165,13 +165,12 @@ namespace
 		float steveX = 0, steveY = 0, steveZ = 0;
 		bool haveOut = false;
 		float dist = 5.5f, height = 1.4f;
-		// armed: start flying (elytra, launched along heading/pitch) as soon as the player drops off an edge
-		bool armed = false;
+		// armed by default: Space launches the elytra, and falling off an edge can also open it
+		bool armed = true;
 		float armZ = 0, armHeading = 0, armPitch = 0, armSpeed = 1.0f, armDrop = 0.6f;
 		int armHold = 3000;             // ms the arm heading/pitch steer before the director or the mouse does
-		// the player flies it: the mouse steers, any real fall off something tall opens the elytra, and touching
-		// down lands (back to walking)
-		bool user = false;
+		// user flight: Space launches, the mouse steers, and touching down returns to walking
+		bool user = true;
 		int fallingSince = 0;           // game time the player's current fall began (0 = not falling)
 		int launchedAt = 0, armAfter = 0;
 	} g_drive;
