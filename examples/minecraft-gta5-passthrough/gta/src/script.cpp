@@ -1906,11 +1906,21 @@ namespace
 		}
 		if (type == "pteleport")
 		{
-			// Minecraft moved the player (ender pearl): move GTA's player there, keeping the height mapping
+			// Minecraft moved the player (ender pearl): move the host and reset the flight sample so it cannot snap back
 			const char *pos = json_value(message, "pos");
 			double x, y, z;
 			if (pos && sscanf_s(pos, "[%lf ,%lf ,%lf ]", &x, &y, &z) == 3)
-				natives::SetEntityCoordsNoOffset(natives::PlayerPedId(), float(x), float(-z), float(y - g_yOffset + 1.0));
+			{
+				const float gx = float(x), gy = float(-z), gz = float(y - g_yOffset);
+				if (g_drive.on)
+				{
+					g_drive.pos = {gx, 0, gy, 0, gz, 0};
+					g_drive.vel = {};
+					g_drive.posNanos = now_nanos();
+					g_drive.havePos = true;
+				}
+				natives::SetEntityCoordsNoOffset(natives::PlayerPedId(), gx, gy, gz + 1.0f);
+			}
 			return;
 		}
 		if (type != "explosion")
@@ -1965,11 +1975,12 @@ namespace
 		// where Minecraft's player is now: its last sample, carried forward by its velocity to this moment
 		const float dt = std::clamp(float(now - g_drive.posNanos) * 1e-9f, 0.0f, 0.1f);
 		const float tx = g_drive.pos.x + g_drive.vel.x * dt, ty = g_drive.pos.y + g_drive.vel.y * dt, tz = g_drive.pos.z + g_drive.vel.z * dt;
-		if (g_drive.user && g_drive.vel.z < 0.0f && natives::GetGameTimer() - g_drive.launchedAt > 1000)
+		if (g_drive.user && natives::GetGameTimer() - g_drive.launchedAt > 1000)
 		{
-			// Minecraft's player goes through GTA's world (it isn't in Minecraft): land on whatever is below instead
+			// Minecraft has no GTA collision; probe from above the host player so a fall below terrain still finds it
 			float g = 0.0f;
-			if (natives::GetGroundZFor3dCoord(tx, ty, tz + 1.0f, &g, FALSE, FALSE) && tz + g_drive.vel.z * 0.05f < g + 0.4f)
+			const float probeZ = std::max(tz + 100.0f, natives::GetEntityCoords(ped, TRUE).z + 100.0f);
+			if (natives::GetGroundZFor3dCoord(tx, ty, probeZ, &g, FALSE, FALSE) && g > -100.0f && tz < g + 1.0f)
 			{
 				drive_land(ped, tx, ty, g);
 				return;
