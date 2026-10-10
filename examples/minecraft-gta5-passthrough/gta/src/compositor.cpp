@@ -17,6 +17,10 @@ namespace
 	constexpr int kHeader = 4096;
 	constexpr int kSlotDesc = 256;
 	constexpr int kSlotDescBytes = 128;
+	constexpr uint32_t kMaxWidth = 3840;
+	constexpr uint32_t kMaxHeight = 2160;
+	constexpr int32_t kExpectedSlots = 3;
+	constexpr int64_t kMinStride = int64_t(kMaxWidth) * kMaxHeight * 12;
 	constexpr const char *kEffect = "MCPassthrough.fx";
 
 	std::atomic<bool> g_registered{false};
@@ -91,6 +95,12 @@ namespace
 		g_slots = read<int32_t>(header + 12);
 		g_stride = read<int64_t>(header + 16);
 		UnmapViewOfFile(header);
+		if (g_slots != kExpectedSlots || g_stride < kMinStride || g_stride > INT64_MAX / g_slots)
+		{
+			CloseHandle(g_mapping);
+			g_mapping = nullptr;
+			return false;
+		}
 		g_view = static_cast<const uint8_t *>(MapViewOfFile(g_mapping, FILE_MAP_READ, 0, 0, static_cast<SIZE_T>(kHeader + g_stride * g_slots)));
 		if (g_view == nullptr)
 		{
@@ -122,7 +132,11 @@ namespace
 				resource_desc(w, h, 1, 1, fmt, 1, memory_heap::default_, resource_usage::shader_resource | resource_usage::copy_dest),
 				nullptr, resource_usage::shader_resource, &layer.tex))
 			return false;
-		return dev->create_resource_view(layer.tex, resource_usage::shader_resource, resource_view_desc(fmt), &layer.srv);
+		if (dev->create_resource_view(layer.tex, resource_usage::shader_resource, resource_view_desc(fmt), &layer.srv))
+			return true;
+		dev->destroy_resource(layer.tex);
+		layer.tex = {0};
+		return false;
 	}
 
 	void bind(effect_runtime *runtime)
@@ -146,7 +160,7 @@ namespace
 		if (seq & 1)
 			return;
 		const uint32_t w = read<uint32_t>(desc + 24), h = read<uint32_t>(desc + 28);
-		if (w == 0 || h == 0)
+		if (w == 0 || h == 0 || w > kMaxWidth || h > kMaxHeight || int64_t(w) * h * 12 > g_stride)
 			return;
 		device *dev = runtime->get_device();
 		if (w != g_width || h != g_height)
@@ -165,6 +179,8 @@ namespace
 		}
 		const uint8_t *base = g_view + kHeader + g_stride * slot;
 		const size_t layer = size_t(w) * h * 4;
+		if (layer > size_t(g_stride / 3))
+			return;
 		subresource_data data;
 		data.row_pitch = w * 4;
 		data.slice_pitch = static_cast<uint32_t>(layer);
@@ -360,7 +376,16 @@ namespace
 
 	void on_destroy_effect_runtime(effect_runtime *runtime)
 	{
-		destroy_layers(runtime->get_device());
+		if (runtime != nullptr && runtime->get_device() != nullptr)
+			destroy_layers(runtime->get_device());
+		else
+		{
+			g_world = Layer();
+			g_depth = Layer();
+			g_overlay = Layer();
+			g_width = g_height = 0;
+			g_hasFrame = false;
+		}
 	}
 }
 
